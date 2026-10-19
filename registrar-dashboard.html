@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrar Dashboard - Fullbright College</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" type="image/png" href="images/logo.png">
+</head>
+<body>
+  <button class="mobile-menu-btn" id="mobileMenuBtn">
+    <i class="fas fa-bars"></i>
+  </button>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="images/logo.png" alt="Logo" onerror="this.style.display='none'">
+      <div>
+        <h5>Fullbright College</h5>
+        <small>Registrar Portal</small>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+      <a href="#pendingTab" class="nav-link registrar-tab" data-tab="pendingTab"><i class="fas fa-clock"></i> Pending Registrations</a>
+      <a href="#approvedTab" class="nav-link registrar-tab" data-tab="approvedTab"><i class="fas fa-check-circle"></i> Approved Students</a>
+      <a href="#" class="nav-link"><i class="fas fa-chart-bar"></i> Statistics</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" id="logoutBtn" class="nav-link text-danger"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div class="dashboard-header">
+      <div>
+        <h2>Registrar Dashboard</h2>
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+            <li class="breadcrumb-item active">Registrar Dashboard</li>
+          </ol>
+        </nav>
+      </div>
+      <div class="user-info">
+        <img src="images/default-avatar.png" alt="Profile" class="user-avatar" onerror="this.src='images/default-avatar.png'">
+        <div>
+          <div class="user-name">Registrar</div>
+          <div class="user-role">Registrar Office</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+            <div>
+              <div class="stat-value" id="pendingRegistrations">0</div>
+              <div class="stat-label">Pending</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon green"><i class="fas fa-check"></i></div>
+            <div>
+              <div class="stat-value" id="approvedRegistrations">0</div>
+              <div class="stat-label">Approved</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon red"><i class="fas fa-times"></i></div>
+            <div>
+              <div class="stat-value" id="rejectedRegistrations">0</div>
+              <div class="stat-label">Rejected</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon blue"><i class="fas fa-undo"></i></div>
+            <div>
+              <div class="stat-value" id="returnedRegistrations">0</div>
+              <div class="stat-label">Returned</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs registrar-tab" role="tablist">
+          <li class="nav-item">
+            <a class="nav-link active registrar-tab" data-tab="pendingTab" href="#pendingTab" role="tab">Pending Registrations</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link registrar-tab" data-tab="approvedTab" href="#approvedTab" role="tab">Approved Students</a>
+          </li>
+        </ul>
+      </div>
+      <div class="card-body">
+        <!-- Pending Tab -->
+        <div class="registrar-tab-content" id="pendingTab">
+          <div class="mb-3">
+            <div class="search-bar">
+              <i class="fas fa-search search-icon"></i>
+              <input type="text" class="form-control" id="registrarSearch" placeholder="Search student by name or student number...">
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Student Number</th>
+                  <th>Full Name</th>
+                  <th>Course</th>
+                  <th>Year Level</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="pendingTableBody">
+                <tr><td colspan="6" class="text-center p-4">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Approved Tab -->
+        <div class="registrar-tab-content d-none" id="approvedTab">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Student Number</th>
+                  <th>Full Name</th>
+                  <th>Course</th>
+                  <th>Year Level</th>
+                  <th>Approved Date</th>
+                </tr>
+              </thead>
+              <tbody id="approvedTableBody">
+                <tr><td colspan="5" class="text-center p-4">No approved students yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- View Registration Modal -->
+  <div class="modal fade" id="viewRegistrationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Registration Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4 text-center">
+              <img id="viewRegPhoto" src="images/default-avatar.png" alt="Photo" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);" onerror="this.src='images/default-avatar.png'">
+            </div>
+            <div class="col-md-8">
+              <table class="table table-borderless">
+                <tr><td><strong>Student Number</strong></td><td id="viewRegStudentNumber">N/A</td></tr>
+                <tr><td><strong>Full Name</strong></td><td id="viewRegFullName">N/A</td></tr>
+                <tr><td><strong>Email</strong></td><td id="viewRegEmail">N/A</td></tr>
+                <tr><td><strong>Phone</strong></td><td id="viewRegPhone">N/A</td></tr>
+                <tr><td><strong>Course</strong></td><td id="viewRegCourse">N/A</td></tr>
+                <tr><td><strong>Year Level</strong></td><td id="viewRegYear">N/A</td></tr>
+                <tr><td><strong>Section</strong></td><td id="viewRegSection">N/A</td></tr>
+                <tr><td><strong>Address</strong></td><td id="viewRegAddress">N/A</td></tr>
+                <tr><td><strong>Guardian</strong></td><td id="viewRegGuardian">N/A</td></tr>
+                <tr><td><strong>Guardian Contact</strong></td><td id="viewRegGuardianContact">N/A</td></tr>
+                <tr><td><strong>Status</strong></td><td id="viewRegStatus">N/A</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="registrarLoading">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/validation.js"></script>
+  <script src="js/registrar.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

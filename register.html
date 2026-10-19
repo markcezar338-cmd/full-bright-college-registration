@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - Fullbright College</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" type="image/png" href="images/logo.png">
+</head>
+<body class="register-page">
+  <div class="container">
+    <div class="register-card mx-auto">
+      <div class="text-center mb-4">
+        <img src="images/logo.png" alt="Fullbright College Logo" onerror="this.style.display='none'" style="height:60px;">
+        <h4 class="mt-2">Student Registration Form</h4>
+        <p class="text-muted" style="font-size:0.85rem;">Fullbright College Student Registration System</p>
+      </div>
+
+      <div id="registerAlert" class="alert alert-danger d-none" role="alert"></div>
+      <div id="registerSuccess" class="alert alert-success d-none" role="alert"></div>
+
+      <form id="registerForm">
+        <!-- Personal Information Section -->
+        <h5 class="section-title"><i class="fas fa-user me-2"></i>Personal Information</h5>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="form-label">Student Number <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="studentNumber" placeholder="e.g., AB123456" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">First Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="firstName" placeholder="First name" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Middle Name</label>
+            <input type="text" class="form-control" id="middleName" placeholder="Middle name">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="lastName" placeholder="Last name" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Birthday <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="birthday" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Age <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="age" min="16" max="100" readonly>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Gender <span class="text-danger">*</span></label>
+            <select class="form-select" id="gender" required>
+              <option value="">Select Gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Contact Information Section -->
+        <h5 class="section-title"><i class="fas fa-address-book me-2"></i>Contact Information</h5>
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label">Email Address <span class="text-danger">*</span></label>
+            <input type="email" class="form-control" id="email" placeholder="your.email@email.com" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Phone Number <span class="text-danger">*</span></label>
+            <input type="tel" class="form-control" id="phone" placeholder="09123456789" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Address <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="address" placeholder="Street Address" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Province <span class="text-danger">*</span></label>
+            <select class="form-select" id="province" required>
+              <option value="">Select Province</option>
+              <option value="Metro Manila">Metro Manila</option>
+              <option value="Cordillera Administrative Region">Cordillera Administrative Region</option>
+              <option value="Ilocos Region">Ilocos Region</option>
+              <option value="Cagayan Valley">Cagayan Valley</option>
+              <option value="Central Luzon">Central Luzon</option>
+              <option value="CALABARZON">CALABARZON</option>
+              <option value="MIMAROPA">MIMAROPA</option>
+              <option value="Bicol Region">Bicol Region</option>
+              <option value="Western Visayas">Western Visayas</option>
+              <option value="Central Visayas">Central Visayas</option>
+              <option value="Eastern Visayas">Eastern Visayas</option>
+              <option value="Zamboanga Peninsula">Zamboanga Peninsula</option>
+              <option value="Northern Mindanao">Northern Mindanao</option>
+              <option value="Davao Region">Davao Region</option>
+              <option value="SOCCSKSARGEN">SOCCSKSARGEN</option>
+              <option value="Caraga">Caraga</option>
+              <option value="BARMM">BARMM</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">City <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="city" placeholder="City/Municipality" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Barangay <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="barangay" placeholder="Barangay" required>
+          </div>
+        </div>
+
+        <!-- Academic Information Section -->
+        <h5 class="section-title"><i class="fas fa-graduation-cap me-2"></i>Academic Information</h5>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="form-label">Course <span class="text-danger">*</span></label>
+            <select class="form-select" id="course" required>
+              <option value="">Select Course</option>
+              <option value="Bachelor of Science in Computer Science">BS Computer Science</option>
+              <option value="Bachelor of Science in Information Technology">BS Information Technology</option>
+              <option value="Bachelor of Science in Business Administration">BS Business Administration</option>
+              <option value="Bachelor of Science in Nursing">BS Nursing</option>
+              <option value="Bachelor of Elementary Education">BEEd</option>
+              <option value="Bachelor of Secondary Education">BSEd</option>
+              <option value="Bachelor of Science in Accountancy">BS Accountancy</option>
+              <option value="Bachelor of Science in Civil Engineering">BS Civil Engineering</option>
+              <option value="Bachelor of Science in Electrical Engineering">BS Electrical Engineering</option>
+              <option value="Bachelor of Science in Mechanical Engineering">BS Mechanical Engineering</option>
+              <option value="Bachelor of Arts in Communication">BA Communication</option>
+              <option value="Bachelor of Science in Psychology">BS Psychology</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Year Level <span class="text-danger">*</span></label>
+            <select class="form-select" id="yearLevel" required>
+              <option value="">Select Year Level</option>
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+              <option value="4">4th Year</option>
+              <option value="5">5th Year</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Section <span class="text-danger">*</span></label>
+            <select class="form-select" id="section" required>
+              <option value="">Select Section</option>
+              <option value="A">Section A</option>
+              <option value="B">Section B</option>
+              <option value="C">Section C</option>
+              <option value="D">Section D</option>
+              <option value="E">Section E</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Guardian Information Section -->
+        <h5 class="section-title"><i class="fas fa-users me-2"></i>Guardian Information</h5>
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label">Guardian Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="guardianName" placeholder="Full name of guardian" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Guardian Contact Number <span class="text-danger">*</span></label>
+            <input type="tel" class="form-control" id="guardianContact" placeholder="09123456789" required>
+          </div>
+        </div>
+
+        <!-- Account Setup Section -->
+        <h5 class="section-title"><i class="fas fa-lock me-2"></i>Account Setup</h5>
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label">Profile Picture</label>
+            <input type="file" class="form-control" id="profilePicture" accept="image/*">
+            <div class="mt-2 text-center">
+              <img id="profilePreview" src="" alt="Profile Preview" style="display:none; width:120px; height:120px; border-radius:50%; object-fit:cover; border:3px solid var(--primary);">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="password" placeholder="Minimum 8 characters" required>
+            <div class="password-strength" id="passwordStrength"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="confirmPassword" placeholder="Re-enter password" required>
+          </div>
+        </div>
+
+        <!-- Terms and Conditions -->
+        <div class="mb-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="termsAccepted" required>
+            <label class="form-check-label" for="termsAccepted">
+              I have read and agree to the <a href="terms.html" target="_blank">Terms and Conditions</a> and <a href="privacy.html" target="_blank">Privacy Policy</a>.
+            </label>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="d-flex gap-3">
+          <button type="submit" class="btn btn-primary flex-fill">
+            <i class="fas fa-paper-plane me-2"></i>Submit Registration
+          </button>
+          <button type="button" class="btn btn-outline-secondary flex-fill" id="cancelBtn">
+            <i class="fas fa-times me-2"></i>Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="registerLoading">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/validation.js"></script>
+  <script src="js/register.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
