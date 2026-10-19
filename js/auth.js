@@ -5,17 +5,19 @@
    ============================================================ */
 
 function isAuthenticated() {
-  const { data: { session } } = supabase.auth.getSession();
-  return session !== null;
+  return supabase.auth.getSession().then(function ({ data: { session } }) {
+    return session !== null;
+  });
 }
 
 function getCurrentUser() {
-  const { data: { user } } = supabase.auth.getUser();
-  return user;
+  return supabase.auth.getUser().then(function ({ data: { user } }) {
+    return user;
+  });
 }
 
 async function getCurrentUserRole() {
-  const user = supabase.auth.getUser().data.user;
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   try {
@@ -50,7 +52,7 @@ function redirectByRole(role) {
 }
 
 async function requireRole(requiredRole) {
-  const user = supabase.auth.getUser().data.user;
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     window.location.href = 'login.html';
     return false;
@@ -93,22 +95,31 @@ async function signUp(email, password, role, userData) {
         data: {
           first_name: userData.firstName,
           last_name: userData.lastName,
-          role: role
+          role: role,
+          student_number: userData.studentNumber || ''
         }
       }
     });
 
     if (error) throw error;
 
-    // Save user data to Supabase
-    await supabase.from('users').insert({
+    // The registration row is protected by RLS, so this page needs the
+    // session returned immediately after signup. Enable it by turning off
+    // Confirm email while testing in Authentication > Providers > Email.
+    if (!data.session) {
+      throw new Error('Email confirmation is enabled. Disable Confirm email in Supabase, then use a new email address to register.');
+    }
+
+    // The database trigger creates this profile during signup. Upsert adds the
+    // registration-specific fields without failing on that existing row.
+    const { error: profileError } = await supabase.from('users').upsert({
       id: data.user.id,
       email: email,
       role: role,
       name: userData.firstName + ' ' + (userData.middleName ? userData.middleName + ' ' : '') + userData.lastName,
-      student_number: userData.studentNumber || null,
-      created_at: new Date().toISOString()
+      student_number: userData.studentNumber || null
     });
+    if (profileError) throw profileError;
 
     return data;
   } catch (error) {
@@ -130,7 +141,9 @@ async function signOut() {
 async function resetPassword(email) {
   try {
     showLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname.replace(/[^/]*$/, 'login.html')
+    });
     if (error) throw error;
     showToast('Password reset email sent. Check your inbox.', 'success');
   } catch (error) {

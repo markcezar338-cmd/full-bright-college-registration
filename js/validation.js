@@ -1,7 +1,6 @@
 /* ============================================================
    Fullbright College - Student Registration System
-   Validation Module
-   Client-side form validation (framework-agnostic)
+   Validation & UI Notification Module
    ============================================================ */
 
 function isValidEmail(email) {
@@ -15,12 +14,14 @@ function isValidPhone(phone) {
 }
 
 function isValidStudentNumber(studentNumber) {
-  const regex = /^[A-Z]{2,4}\d{6,8}$/;
+  // Allow formats like AB123456, FBC-2026-0001, 2026-0001, or alphanumeric 4-15 chars
+  const regex = /^[A-Za-z0-9\-]{4,15}$/;
   return regex.test(studentNumber);
 }
 
 function getPasswordStrength(password) {
   let score = 0;
+  if (!password) return 'weak';
   if (password.length >= 8) score++;
   if (password.length >= 12) score++;
   if (/[A-Z]/.test(password)) score++;
@@ -42,7 +43,7 @@ function validateRegistrationForm(formData) {
   if (!formData.studentNumber || formData.studentNumber.trim() === '') {
     errors.push('Student Number is required.');
   } else if (!isValidStudentNumber(formData.studentNumber.trim())) {
-    errors.push('Student Number must be in format like AB123456.');
+    errors.push('Student Number must be 4 to 15 alphanumeric characters (e.g., FBC-2026-0001 or AB123456).');
   }
 
   if (!formData.firstName || formData.firstName.trim() === '') {
@@ -115,8 +116,8 @@ function validateRegistrationForm(formData) {
     errors.push('Please enter a valid guardian phone number.');
   }
 
-  if (!formData.password || formData.password.length < 8) {
-    errors.push('Password must be at least 8 characters.');
+  if (!formData.password || formData.password.length < 6) {
+    errors.push('Password must be at least 6 characters.');
   }
 
   if (formData.password !== formData.confirmPassword) {
@@ -158,6 +159,7 @@ function calculateAge(birthday) {
 }
 
 function formatDate(dateString) {
+  if (!dateString) return 'N/A';
   const options = { year: 'numeric', month: 'long', day: 'numeric' };
   return new Date(dateString).toLocaleDateString('en-US', options);
 }
@@ -204,4 +206,108 @@ function showFieldSuccess(fieldId) {
   if (!field) return;
   field.classList.remove('is-invalid');
   field.classList.add('is-valid');
+}
+
+/**
+ * Global Toast Notification Implementation
+ */
+function showToast(message, type = 'info', duration = 4000) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+  }
+
+  const bgClasses = {
+    success: 'bg-success text-white',
+    danger: 'bg-danger text-white',
+    warning: 'bg-warning text-dark',
+    info: 'bg-primary text-white'
+  };
+
+  const icons = {
+    success: '<i class="fas fa-check-circle me-2"></i>',
+    danger: '<i class="fas fa-exclamation-circle me-2"></i>',
+    warning: '<i class="fas fa-exclamation-triangle me-2"></i>',
+    info: '<i class="fas fa-info-circle me-2"></i>'
+  };
+
+  const toastEl = document.createElement('div');
+  toastEl.className = `toast align-items-center ${bgClasses[type] || bgClasses.info} border-0 mb-2 show`;
+  toastEl.setAttribute('role', 'alert');
+  toastEl.setAttribute('aria-live', 'assertive');
+  toastEl.setAttribute('aria-atomic', 'true');
+
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body d-flex align-items-center">
+        ${icons[type] || icons.info}
+        <span>${message}</span>
+      </div>
+      <button type="button" class="btn-close ${type === 'warning' ? '' : 'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+
+  container.appendChild(toastEl);
+
+  const closeBtn = toastEl.querySelector('.btn-close');
+  closeBtn.addEventListener('click', () => toastEl.remove());
+
+  if (duration > 0) {
+    setTimeout(() => {
+      toastEl.classList.remove('show');
+      setTimeout(() => toastEl.remove(), 250);
+    }, duration);
+  }
+}
+
+/**
+ * Global Loading Indicator Implementation
+ */
+function showLoading(show = true) {
+  const overlays = [
+    document.getElementById('loginLoading'),
+    document.getElementById('registerLoading'),
+    document.getElementById('adminLoading'),
+    document.getElementById('loadingOverlay')
+  ];
+
+  let matched = false;
+  overlays.forEach(overlay => {
+    if (overlay) {
+      overlay.style.display = show ? 'flex' : 'none';
+      matched = true;
+    }
+  });
+
+  if (!matched && show) {
+    let globalSpinner = document.getElementById('globalAppSpinner');
+    if (!globalSpinner) {
+      globalSpinner = document.createElement('div');
+      globalSpinner.id = 'globalAppSpinner';
+      globalSpinner.style.position = 'fixed';
+      globalSpinner.style.top = '0';
+      globalSpinner.style.left = '0';
+      globalSpinner.style.width = '100vw';
+      globalSpinner.style.height = '100vh';
+      globalSpinner.style.background = 'rgba(15, 23, 42, 0.6)';
+      globalSpinner.style.display = 'flex';
+      globalSpinner.style.alignItems = 'center';
+      globalSpinner.style.justifyContent = 'center';
+      globalSpinner.style.zIndex = '99999';
+      globalSpinner.innerHTML = `
+        <div class="spinner-border text-primary" style="width: 3.5rem; height: 3.5rem;" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      `;
+      document.body.appendChild(globalSpinner);
+    }
+    globalSpinner.style.display = 'flex';
+  } else if (!matched && !show) {
+    const globalSpinner = document.getElementById('globalAppSpinner');
+    if (globalSpinner) globalSpinner.style.display = 'none';
+  }
 }

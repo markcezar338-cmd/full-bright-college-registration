@@ -53,7 +53,8 @@ Student-Registration-System/
 ### Step 2: Get Your Supabase Credentials
 1. In Supabase Dashboard, go to **Settings** > **API**
 2. Copy the **Project URL** (looks like `https://xyzcompanyid.supabase.co`)
-3. Copy the **anon (public) key**
+3. Copy the **Publishable key**. If your dashboard only shows legacy keys, use the **anon (public)** key.
+   Do not use the `service_role` or secret key in a website.
 
 ### Step 3: Update supabase-config.js
 1. Open `js/supabase-config.js` in Visual Studio Code
@@ -61,9 +62,7 @@ Student-Registration-System/
 
 ```javascript
 const SUPABASE_URL = "https://xyzcompanyid.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
-
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_ANON_KEY = "sb_publishable_your_key_here";
 ```
 
 ### Step 4: Set Up the Database Schema
@@ -84,8 +83,8 @@ This will create all the necessary tables:
 ### Step 5: Configure Authentication
 1. In Supabase Dashboard, go to **Authentication** > **Providers**
 2. Enable **Email** provider
-3. Go to **Authentication** > **Settings**
-4. Configure email confirmation as needed (for production, enable email confirmation)
+3. For first-time testing, disable **Confirm email** so a new account can immediately create its registration record.
+4. For production, enable email confirmation and have users verify their email before completing registration.
 
 ### Step 6: Set Up Storage
 1. In Supabase Dashboard, go to **Storage**
@@ -94,7 +93,23 @@ This will create all the necessary tables:
 4. Set it to **Public** (so profile pictures can be viewed)
 5. Click **Create bucket**
 
-### Step 7: Configure Row Level Security (RLS)
+### Step 7: Create Admin and Registrar Accounts
+1. Go to **Authentication** > **Users** > **Add user** and create an email/password account for each staff member.
+2. In **SQL Editor**, run the matching command (replace the email):
+
+```sql
+INSERT INTO public.users (id, email, role)
+SELECT id, email, 'admin' FROM auth.users WHERE email = 'admin@example.com'
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+
+INSERT INTO public.users (id, email, role)
+SELECT id, email, 'registrar' FROM auth.users WHERE email = 'registrar@example.com'
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+```
+
+3. Log in at `login.html`, selecting **Admin** or **Registrar** to match the account role.
+
+### Step 8: Configure Row Level Security (RLS)
 After running the SQL schema, RLS policies are already set up. The key policies are:
 - **Users**: Users can read/update their own data. Admins can read/write all users.
 - **Student Registrations**: Authenticated users can read all registrations. Students can insert their own. Admins and registrars can update.

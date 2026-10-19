@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const profilePreview = document.getElementById('profilePreview');
   const profileInput = document.getElementById('profilePicture');
   const cancelBtn = document.getElementById('cancelBtn');
+  const submitButton = registerForm ? registerForm.querySelector('button[type="submit"]') : null;
 
   if (birthdayInput && ageInput) {
     birthdayInput.addEventListener('change', function () {
@@ -65,13 +66,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
       debounceTimer = setTimeout(async function () {
         try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('student_number')
-            .eq('student_number', value)
-            .single();
+          const { data: exists, error } = await supabase
+            .rpc('student_number_exists', { p_student_number: value });
 
-          if (data) {
+          if (error) throw error;
+
+          if (exists) {
             showFieldError('studentNumber', 'This student number is already registered.');
           } else {
             showFieldSuccess('studentNumber');
@@ -121,31 +121,17 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       try {
+        if (submitButton) submitButton.disabled = true;
         showLoading(true);
 
-        // Check for duplicate student number
-        const { data: dupStudent, error: dupStudentError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('student_number', formData.studentNumber)
-          .single();
+        // Securely check duplicate student numbers before creating an Auth user.
+        const { data: studentNumberExists, error: studentNumberError } = await supabase
+          .rpc('student_number_exists', { p_student_number: formData.studentNumber });
 
-        if (dupStudent) {
+        if (studentNumberError) throw studentNumberError;
+
+        if (studentNumberExists) {
           showToast('This student number is already registered.', 'danger');
-          showLoading(false);
-          return;
-        }
-
-        // Check for duplicate email
-        const { data: dupEmail, error: dupEmailError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', formData.email)
-          .single();
-
-        if (dupEmail) {
-          showToast('An account with this email already exists.', 'danger');
-          showLoading(false);
           return;
         }
 
@@ -156,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let photoURL = '';
         if (profileInput && profileInput.files[0]) {
           const file = profileInput.files[0];
-          const fileName = result.user.id + '_' + file.name;
+          const fileName = result.user.id + '/' + file.name;
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from('profile_pictures')
             .upload(fileName, file, {
@@ -173,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Save full student registration data to Supabase
-        await supabase.from('student_registrations').insert({
+        const { error: registrationError } = await supabase.from('student_registrations').insert({
           id: result.user.id,
           student_number: formData.studentNumber,
           first_name: formData.firstName,
@@ -198,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
+        if (registrationError) throw registrationError;
 
         showToast('Registration submitted successfully! Please wait for approval.', 'success');
         registerForm.reset();
@@ -205,15 +192,38 @@ document.addEventListener('DOMContentLoaded', function () {
           profilePreview.src = '';
           profilePreview.style.display = 'none';
         }
+
+        const successAlert = document.getElementById('registerSuccess');
+        if (successAlert) {
+          successAlert.classList.remove('d-none');
+          successAlert.innerHTML = `
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span><i class="fas fa-check-circle me-2"></i>Registration submitted successfully.</span>
+              <a class="btn btn-success btn-sm" href="login.html">
+                <i class="fas fa-sign-in-alt me-1"></i>Go to Login
+              </a>
+            </div>`;
+          successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       } catch (error) {
         console.error('Registration error:', error);
+        const errorMessage = error && error.message ? error.message : String(error || 'Unknown error');
         let message = 'Registration failed. Please try again.';
-        if (error.message.includes('already registered')) {
+        if (errorMessage.toLowerCase().includes('already registered') || errorMessage.toLowerCase().includes('already exists')) {
           message = 'An account with this email already exists.';
+        } else if (errorMessage.includes('Email confirmation is enabled')) {
+          message = errorMessage;
+        } else if (errorMessage.includes('row-level security') || errorMessage.includes('permission denied')) {
+          message = 'Database permissions are not ready. Run the complete schema.sql in Supabase and disable Confirm email for testing.';
+        } else if (errorMessage.includes('Database error saving new user')) {
+          message = 'Supabase rejected the new account. Run the updated schema.sql, then use a student number and email that have not been used before.';
+        } else if (errorMessage && errorMessage !== 'Unknown error') {
+          message = 'Registration failed: ' + errorMessage.slice(0, 180);
         }
         showToast(message, 'danger');
       } finally {
         showLoading(false);
+        if (submitButton) submitButton.disabled = false;
       }
     });
   }

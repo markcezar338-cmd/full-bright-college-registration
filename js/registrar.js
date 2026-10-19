@@ -143,30 +143,34 @@ async function loadApprovedStudents() {
 
 async function loadRegistrarStats() {
   try {
-    const { data: pendingData, error: pendingError } = await supabase
+    const { count: pendingCount, error: pendingError } = await supabase
       .from('student_registrations')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'pending');
 
-    const { data: approvedData, error: approvedError } = await supabase
+    const { count: approvedCount, error: approvedError } = await supabase
       .from('student_registrations')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'approved');
 
-    const { data: rejectedData, error: rejectedError } = await supabase
+    const { count: rejectedCount, error: rejectedError } = await supabase
       .from('student_registrations')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'rejected');
 
-    const { data: returnedData, error: returnedError } = await supabase
+    const { count: returnedCount, error: returnedError } = await supabase
       .from('student_registrations')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'returned');
 
-    animateCounter('pendingRegistrations', pendingData?.count || 0);
-    animateCounter('approvedRegistrations', approvedData?.count || 0);
-    animateCounter('rejectedRegistrations', rejectedData?.count || 0);
-    animateCounter('returnedRegistrations', returnedData?.count || 0);
+    if (pendingError || approvedError || rejectedError || returnedError) {
+      throw pendingError || approvedError || rejectedError || returnedError;
+    }
+
+    animateCounter('pendingRegistrations', pendingCount || 0);
+    animateCounter('approvedRegistrations', approvedCount || 0);
+    animateCounter('rejectedRegistrations', rejectedCount || 0);
+    animateCounter('returnedRegistrations', returnedCount || 0);
   } catch (error) {
     console.error('Error loading stats:', error);
   }

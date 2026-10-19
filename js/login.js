@@ -47,10 +47,8 @@ document.addEventListener('DOMContentLoaded', function () {
           .single();
 
         if (userError || !userData) {
-          showToast('Login successful!', 'success');
-          setTimeout(function () {
-            window.location.href = 'index.html';
-          }, 1000);
+          await supabase.auth.signOut();
+          showToast('This account has no website role yet. Run the staff-role SQL setup, or register as a student first.', 'danger', 6000);
           return;
         }
 
@@ -62,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }, 1000);
         } else {
           await supabase.auth.signOut();
-          showToast('Invalid user type for this account.', 'danger');
+          showToast('This account is a ' + role + ' account. Select that role and sign in again.', 'danger');
         }
       } catch (error) {
         console.error('Login error:', error);

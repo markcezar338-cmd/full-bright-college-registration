@@ -1,40 +1,31 @@
 -- ============================================================
 -- Fullbright College - Student Registration System
--- Supabase Database Schema
--- Run this in Supabase SQL Editor
+-- Paste this entire file into Supabase Dashboard > SQL Editor > New query.
+-- It is safe to run again: it does not delete student records.
 -- ============================================================
 
--- Enable extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ============================================================
--- 1. USERS TABLE
--- Stores user accounts with roles (student, registrar, admin)
--- ============================================================
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'registrar', 'admin')),
   name TEXT,
-  student_number TEXT,
+  student_number TEXT UNIQUE,
   avatar_url TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
--- 2. STUDENT REGISTRATIONS TABLE
--- Stores student registration form submissions
--- ============================================================
-CREATE TABLE IF NOT EXISTS student_registrations (
+CREATE TABLE IF NOT EXISTS public.student_registrations (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  student_number TEXT UNIQUE,
+  student_number TEXT UNIQUE NOT NULL,
   first_name TEXT NOT NULL,
   middle_name TEXT,
   last_name TEXT NOT NULL,
   birthday DATE,
-  age INTEGER,
+  age INTEGER CHECK (age BETWEEN 16 AND 100),
   gender TEXT CHECK (gender IN ('Male', 'Female', 'Other')),
   email TEXT,
   phone TEXT,
@@ -49,271 +40,234 @@ CREATE TABLE IF NOT EXISTS student_registrations (
   guardian_contact TEXT,
   photo_url TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'returned')),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
--- 3. COURSES TABLE
--- Course catalog
--- ============================================================
-CREATE TABLE IF NOT EXISTS courses (
+CREATE TABLE IF NOT EXISTS public.courses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL UNIQUE,
   description TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
--- 4. SECTIONS TABLE
--- Section catalog
--- ============================================================
-CREATE TABLE IF NOT EXISTS sections (
+CREATE TABLE IF NOT EXISTS public.sections (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
-  course TEXT,
-  year_level INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  course TEXT NOT NULL,
+  year_level INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (name, course, year_level)
 );
 
--- ============================================================
--- 5. SETTINGS TABLE
--- Website settings
--- ============================================================
-CREATE TABLE IF NOT EXISTS settings (
+CREATE TABLE IF NOT EXISTS public.settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   key TEXT NOT NULL UNIQUE,
   value TEXT,
   description TEXT,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
--- 6. LOGS TABLE
--- Activity logs
--- ============================================================
-CREATE TABLE IF NOT EXISTS logs (
+CREATE TABLE IF NOT EXISTS public.logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   action TEXT NOT NULL,
   details JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- ============================================================
+-- These indexes also make an older version of this schema compatible with the
+-- repeatable sample-data inserts below.
+CREATE UNIQUE INDEX IF NOT EXISTS sections_name_course_year_level_key
+  ON public.sections (name, course, year_level);
+CREATE UNIQUE INDEX IF NOT EXISTS users_student_number_key
+  ON public.users (student_number) WHERE student_number IS NOT NULL;
 
--- Enable RLS on all tables
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_registrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sections ENABLE ROW LEVEL SECURITY;
-ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
+-- Security-definer helpers prevent RLS policies from recursively querying users.
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT role FROM public.users WHERE id = auth.uid();
+$$;
 
--- ============================================================
--- USERS POLICIES
--- ============================================================
--- Users can read their own data
-CREATE POLICY "Users can view own profile" ON users
-  FOR SELECT USING (auth.uid() = id);
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(public.current_user_role() = 'admin', false);
+$$;
 
--- Users can update their own data
-CREATE POLICY "Users can update own profile" ON users
-  FOR UPDATE USING (auth.uid() = id);
+CREATE OR REPLACE FUNCTION public.is_staff()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(public.current_user_role() IN ('admin', 'registrar'), false);
+$$;
 
--- Anyone can insert (for registration)
-CREATE POLICY "Anyone can create user" ON users
-  FOR INSERT WITH CHECK (true);
-
--- Only admins can delete users
-CREATE POLICY "Admins can delete users" ON users
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
+-- Allows the registration page to check a student number without exposing
+-- the protected users table or any student profile data.
+CREATE OR REPLACE FUNCTION public.student_number_exists(p_student_number TEXT)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE student_number = TRIM(p_student_number)
   );
+$$;
 
--- ============================================================
--- STUDENT REGISTRATIONS POLICIES
--- ============================================================
--- Authenticated users can read all registrations
-CREATE POLICY "Authenticated users can view registrations" ON student_registrations
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+GRANT EXECUTE ON FUNCTION public.student_number_exists(TEXT) TO anon, authenticated;
 
--- Students can insert their own registration
-CREATE POLICY "Students can insert own registration" ON student_registrations
-  FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
 
--- Students can update their own registration
-CREATE POLICY "Students can update own registration" ON student_registrations
-  FOR UPDATE USING (auth.uid() = id);
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.users (id, email, role, name, student_number)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data ->> 'role', 'student'),
+    TRIM(CONCAT_WS(' ', NEW.raw_user_meta_data ->> 'first_name', NEW.raw_user_meta_data ->> 'last_name')),
+    NULLIF(NEW.raw_user_meta_data ->> 'student_number', '')
+  ) ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
 
--- Registrars and admins can update any registration
-CREATE POLICY "Registrars and admins can update registrations" ON student_registrations
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role IN ('registrar', 'admin')
-    )
-  );
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+DROP TRIGGER IF EXISTS update_student_registrations_updated_at ON public.student_registrations;
+CREATE TRIGGER update_student_registrations_updated_at BEFORE UPDATE ON public.student_registrations
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+DROP TRIGGER IF EXISTS update_settings_updated_at ON public.settings;
+CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-- Profile rows are created by js/auth.js immediately after signup. Keeping an
+-- Auth trigger here can hide database errors behind Supabase's generic
+-- "Database error saving new user" message, so ensure no old trigger remains.
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
--- ============================================================
--- COURSES POLICIES
--- ============================================================
--- Anyone can read courses
-CREATE POLICY "Anyone can view courses" ON courses
-  FOR SELECT USING (true);
+-- Backfill profile rows for any Auth users that existed before this schema ran.
+INSERT INTO public.users (id, email, role, name, student_number)
+SELECT
+  id,
+  email,
+  COALESCE(raw_user_meta_data ->> 'role', 'student'),
+  TRIM(CONCAT_WS(' ', raw_user_meta_data ->> 'first_name', raw_user_meta_data ->> 'last_name')),
+  NULLIF(raw_user_meta_data ->> 'student_number', '')
+FROM auth.users
+WHERE email IS NOT NULL
+ON CONFLICT (id) DO NOTHING;
 
--- Only admins can insert courses
-CREATE POLICY "Admins can insert courses" ON courses
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_registrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
 
--- Only admins can update courses
-CREATE POLICY "Admins can update courses" ON courses
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+DROP POLICY IF EXISTS "users_select" ON public.users;
+DROP POLICY IF EXISTS "users_insert" ON public.users;
+DROP POLICY IF EXISTS "users_update" ON public.users;
+DROP POLICY IF EXISTS "users_delete" ON public.users;
+DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
+DROP POLICY IF EXISTS "Anyone can create user" ON public.users;
+DROP POLICY IF EXISTS "Admins can delete users" ON public.users;
+CREATE POLICY "users_select" ON public.users FOR SELECT USING (auth.uid() = id OR public.is_staff());
+CREATE POLICY "users_insert" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "users_update" ON public.users FOR UPDATE
+  USING (auth.uid() = id OR public.is_admin())
+  WITH CHECK (public.is_admin() OR (auth.uid() = id AND role = public.current_user_role()));
+CREATE POLICY "users_delete" ON public.users FOR DELETE USING (public.is_admin());
 
--- Only admins can delete courses
-CREATE POLICY "Admins can delete courses" ON courses
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+DROP POLICY IF EXISTS "registrations_select" ON public.student_registrations;
+DROP POLICY IF EXISTS "registrations_insert" ON public.student_registrations;
+DROP POLICY IF EXISTS "registrations_update" ON public.student_registrations;
+DROP POLICY IF EXISTS "registrations_delete" ON public.student_registrations;
+DROP POLICY IF EXISTS "Authenticated users can view registrations" ON public.student_registrations;
+DROP POLICY IF EXISTS "Students can insert own registration" ON public.student_registrations;
+DROP POLICY IF EXISTS "Students can update own registration" ON public.student_registrations;
+DROP POLICY IF EXISTS "Registrars and admins can update registrations" ON public.student_registrations;
+CREATE POLICY "registrations_select" ON public.student_registrations FOR SELECT
+  USING (auth.uid() = id OR public.is_staff());
+CREATE POLICY "registrations_insert" ON public.student_registrations FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "registrations_update" ON public.student_registrations FOR UPDATE
+  USING (auth.uid() = id OR public.is_staff())
+  WITH CHECK (auth.uid() = id OR public.is_staff());
+CREATE POLICY "registrations_delete" ON public.student_registrations FOR DELETE USING (public.is_admin());
 
--- ============================================================
--- SECTIONS POLICIES
--- ============================================================
--- Anyone can read sections
-CREATE POLICY "Anyone can view sections" ON sections
-  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "courses_read" ON public.courses;
+DROP POLICY IF EXISTS "courses_manage" ON public.courses;
+DROP POLICY IF EXISTS "Anyone can view courses" ON public.courses;
+DROP POLICY IF EXISTS "Admins can insert courses" ON public.courses;
+DROP POLICY IF EXISTS "Admins can update courses" ON public.courses;
+DROP POLICY IF EXISTS "Admins can delete courses" ON public.courses;
+CREATE POLICY "courses_read" ON public.courses FOR SELECT USING (true);
+CREATE POLICY "courses_manage" ON public.courses FOR ALL
+  USING (public.is_admin()) WITH CHECK (public.is_admin());
+DROP POLICY IF EXISTS "sections_read" ON public.sections;
+DROP POLICY IF EXISTS "sections_manage" ON public.sections;
+DROP POLICY IF EXISTS "Anyone can view sections" ON public.sections;
+DROP POLICY IF EXISTS "Admins can insert sections" ON public.sections;
+DROP POLICY IF EXISTS "Admins can update sections" ON public.sections;
+DROP POLICY IF EXISTS "Admins can delete sections" ON public.sections;
+CREATE POLICY "sections_read" ON public.sections FOR SELECT USING (true);
+CREATE POLICY "sections_manage" ON public.sections FOR ALL
+  USING (public.is_admin()) WITH CHECK (public.is_admin());
+DROP POLICY IF EXISTS "settings_read" ON public.settings;
+DROP POLICY IF EXISTS "settings_manage" ON public.settings;
+DROP POLICY IF EXISTS "Anyone can view settings" ON public.settings;
+DROP POLICY IF EXISTS "Admins can insert settings" ON public.settings;
+DROP POLICY IF EXISTS "Admins can update settings" ON public.settings;
+DROP POLICY IF EXISTS "Admins can delete settings" ON public.settings;
+CREATE POLICY "settings_read" ON public.settings FOR SELECT USING (true);
+CREATE POLICY "settings_manage" ON public.settings FOR ALL
+  USING (public.is_admin()) WITH CHECK (public.is_admin());
+DROP POLICY IF EXISTS "logs_select" ON public.logs;
+DROP POLICY IF EXISTS "logs_insert" ON public.logs;
+DROP POLICY IF EXISTS "Authenticated users can view logs" ON public.logs;
+DROP POLICY IF EXISTS "Anyone can insert logs" ON public.logs;
+CREATE POLICY "logs_select" ON public.logs FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+CREATE POLICY "logs_insert" ON public.logs FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Only admins can insert sections
-CREATE POLICY "Admins can insert sections" ON sections
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+-- Profile pictures are public to view, but each signed-in user can upload only
+-- under a folder named with their own user id: user-id/file-name.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('profile_pictures', 'profile_pictures', true)
+ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public;
+DROP POLICY IF EXISTS "profile_pictures_read" ON storage.objects;
+DROP POLICY IF EXISTS "profile_pictures_insert" ON storage.objects;
+DROP POLICY IF EXISTS "profile_pictures_update" ON storage.objects;
+DROP POLICY IF EXISTS "profile_pictures_delete" ON storage.objects;
+CREATE POLICY "profile_pictures_read" ON storage.objects FOR SELECT
+  USING (bucket_id = 'profile_pictures');
+CREATE POLICY "profile_pictures_insert" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'profile_pictures' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "profile_pictures_update" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'profile_pictures' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "profile_pictures_delete" ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'profile_pictures' AND (storage.foldername(name))[1] = auth.uid()::text);
 
--- Only admins can update sections
-CREATE POLICY "Admins can update sections" ON sections
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Only admins can delete sections
-CREATE POLICY "Admins can delete sections" ON sections
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- ============================================================
--- SETTINGS POLICIES
--- ============================================================
--- Anyone can read settings
-CREATE POLICY "Anyone can view settings" ON settings
-  FOR SELECT USING (true);
-
--- Only admins can update settings
-CREATE POLICY "Admins can update settings" ON settings
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Only admins can insert settings
-CREATE POLICY "Admins can insert settings" ON settings
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Only admins can delete settings
-CREATE POLICY "Admins can delete settings" ON settings
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- ============================================================
--- LOGS POLICIES
--- ============================================================
--- Authenticated users can read logs
-CREATE POLICY "Authenticated users can view logs" ON logs
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
--- Anyone can insert logs
-CREATE POLICY "Anyone can insert logs" ON logs
-  FOR INSERT WITH CHECK (true);
-
--- ============================================================
--- SAMPLE DATA
--- ============================================================
-
--- Insert default courses
-INSERT INTO courses (name, description) VALUES
+INSERT INTO public.courses (name, description) VALUES
   ('Bachelor of Science in Computer Science', 'BS Computer Science - 4 year program'),
   ('Bachelor of Science in Information Technology', 'BS IT - 4 year program'),
   ('Bachelor of Science in Business Administration', 'BS Business Administration - 4 year program'),
   ('Bachelor of Science in Nursing', 'BS Nursing - 4 year program'),
   ('Bachelor of Elementary Education', 'BEEd - 4 year program'),
-  ('Bachelor of Secondary Education', 'BSEd - 4 year program'),
-  ('Bachelor of Science in Accountancy', 'BS Accountancy - 4 year program'),
-  ('Bachelor of Science in Civil Engineering', 'BS Civil Engineering - 5 year program'),
-  ('Bachelor of Science in Electrical Engineering', 'BS Electrical Engineering - 5 year program'),
-  ('Bachelor of Science in Mechanical Engineering', 'BS Mechanical Engineering - 5 year program'),
-  ('Bachelor of Arts in Communication', 'BA Communication - 4 year program'),
-  ('Bachelor of Science in Psychology', 'BS Psychology - 4 year program')
+  ('Bachelor of Secondary Education', 'BSEd - 4 year program')
 ON CONFLICT (name) DO NOTHING;
-
--- Insert default sections
-INSERT INTO sections (name, course, year_level) VALUES
+INSERT INTO public.sections (name, course, year_level) VALUES
   ('A', 'Bachelor of Science in Computer Science', 1),
   ('B', 'Bachelor of Science in Computer Science', 1),
-  ('C', 'Bachelor of Science in Computer Science', 1),
-  ('D', 'Bachelor of Science in Computer Science', 1),
-  ('E', 'Bachelor of Science in Computer Science', 1),
   ('A', 'Bachelor of Science in Information Technology', 1),
   ('B', 'Bachelor of Science in Information Technology', 1),
   ('A', 'Bachelor of Science in Business Administration', 1),
-  ('B', 'Bachelor of Science in Business Administration', 1),
-  ('A', 'Bachelor of Science in Nursing', 1),
-  ('B', 'Bachelor of Science in Nursing', 1),
-  ('A', 'Bachelor of Elementary Education', 1),
-  ('B', 'Bachelor of Elementary Education', 1),
-  ('A', 'Bachelor of Secondary Education', 1),
-  ('B', 'Bachelor of Secondary Education', 1)
-ON CONFLICT DO NOTHING;
-
--- Insert default settings
-INSERT INTO settings (key, value, description) VALUES
+  ('B', 'Bachelor of Science in Nursing', 1)
+ON CONFLICT (name, course, year_level) DO NOTHING;
+INSERT INTO public.settings (key, value, description) VALUES
   ('school_name', 'Fullbright College', 'Name of the school'),
   ('school_address', '123 College Avenue, Manila, Philippines', 'School address'),
   ('school_email', 'info@fullbright.edu', 'School email'),
@@ -322,47 +276,13 @@ INSERT INTO settings (key, value, description) VALUES
   ('max_students_per_section', '40', 'Maximum students per section')
 ON CONFLICT (key) DO NOTHING;
 
--- ============================================================
--- TRIGGER: Auto-update updated_at timestamp
--- ============================================================
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_users_updated_at
-  BEFORE UPDATE ON users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_student_registrations_updated_at
-  BEFORE UPDATE ON student_registrations
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_settings_updated_at
-  BEFORE UPDATE ON settings
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================================
--- TRIGGER: Auto-create user profile on signup
--- ============================================================
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.users (id, email, role, name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'role', 'student'),
-    NEW.raw_user_meta_data->>'first_name' || ' ' || COALESCE(NEW.raw_user_meta_data->>'last_name', '')
-  );
-  RETURN NEW;
-END;
-$$ language 'plpgsql' SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- STAFF ACCOUNT SETUP
+-- In Supabase Authentication > Users, use Add user to create each staff email
+-- and password. Then run one of these separately in SQL Editor, replacing the
+-- email address. Log out and sign in again with the matching Login As role.
+-- INSERT INTO public.users (id, email, role)
+-- SELECT id, email, 'admin' FROM auth.users WHERE email = 'admin@example.com'
+-- ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+-- INSERT INTO public.users (id, email, role)
+-- SELECT id, email, 'registrar' FROM auth.users WHERE email = 'registrar@example.com'
+-- ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
