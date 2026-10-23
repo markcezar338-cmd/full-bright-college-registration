@@ -181,6 +181,7 @@ function sanitizeInput(input) {
 function showFieldError(fieldId, message) {
   const field = document.getElementById(fieldId);
   if (!field) return;
+  field.classList.remove('is-valid');
   field.classList.add('is-invalid');
   const existingError = field.parentElement.querySelector('.invalid-feedback');
   if (existingError) {
@@ -193,8 +194,8 @@ function showFieldError(fieldId, message) {
 }
 
 function clearFieldErrors() {
-  document.querySelectorAll('.is-invalid').forEach(function (field) {
-    field.classList.remove('is-invalid');
+  document.querySelectorAll('.is-invalid, .is-valid').forEach(function (field) {
+    field.classList.remove('is-invalid', 'is-valid');
   });
   document.querySelectorAll('.invalid-feedback').forEach(function (el) {
     el.remove();
@@ -241,11 +242,13 @@ function showToast(message, type = 'info', duration = 4000) {
   toastEl.setAttribute('aria-live', 'assertive');
   toastEl.setAttribute('aria-atomic', 'true');
 
+  const safeMessage = sanitizeInput(String(message === undefined || message === null ? '' : message));
+
   toastEl.innerHTML = `
     <div class="d-flex">
       <div class="toast-body d-flex align-items-center">
         ${icons[type] || icons.info}
-        <span>${message}</span>
+        <span>${safeMessage}</span>
       </div>
       <button type="button" class="btn-close ${type === 'warning' ? '' : 'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
@@ -272,13 +275,16 @@ function showLoading(show = true) {
     document.getElementById('loginLoading'),
     document.getElementById('registerLoading'),
     document.getElementById('adminLoading'),
+    document.getElementById('registrarLoading'),
+    document.getElementById('dashboardLoading'),
+    document.getElementById('resetPasswordLoading'),
     document.getElementById('loadingOverlay')
   ];
 
   let matched = false;
   overlays.forEach(overlay => {
     if (overlay) {
-      overlay.style.display = show ? 'flex' : 'none';
+      overlay.classList.toggle('active', show);
       matched = true;
     }
   });

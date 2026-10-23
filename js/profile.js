@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     .from('users')
     .select('*')
     .eq('id', session.user.id)
-    .single();
+    .maybeSingle();
 
   if (userError || !userData) {
     showToast('Failed to load profile data.', 'danger');
@@ -25,48 +25,74 @@ document.addEventListener('DOMContentLoaded', async function () {
     .from('student_registrations')
     .select('*')
     .eq('id', session.user.id)
-    .single();
+    .maybeSingle();
 
-  if (userData) {
-    document.getElementById('profileName').textContent = userData.name || 'N/A';
-    document.getElementById('profileStudentNumber').textContent = userData.student_number || 'N/A';
-    document.getElementById('profileRole').textContent = userData.role || 'student';
-    document.getElementById('profileEmail').textContent = userData.email || 'N/A';
+  if (regError) {
+    console.error('Error loading registration:', regError);
   }
 
-  if (registration) {
-    document.getElementById('profileStudentNumber').value = registration.student_number || '';
-    document.getElementById('profileFirstName').value = registration.first_name || '';
-    document.getElementById('profileLastName').value = registration.last_name || '';
-    document.getElementById('profileBirthday').value = registration.birthday || '';
-    document.getElementById('profileAge').value = registration.age || '';
-    document.getElementById('profileGender').value = registration.gender || '';
-    document.getElementById('profileEmailInput').value = registration.email || '';
-    document.getElementById('profilePhone').value = registration.phone || '';
-    document.getElementById('profileAddress').value = registration.address || '';
-    document.getElementById('profileProvince').value = registration.province || '';
-    document.getElementById('profileCity').value = registration.city || '';
-    document.getElementById('profileBarangay').value = registration.barangay || '';
-    document.getElementById('profileCourse').value = registration.course || '';
-    document.getElementById('profileYearLevel').value = registration.year_level || '';
-    document.getElementById('profileSection').value = registration.section || '';
+  populateProfile(userData, registration);
+
+  if (!registration) {
+    const saveBtn = document.getElementById('saveProfileBtn');
+    if (saveBtn) saveBtn.disabled = true;
+    showToast('No student registration record was found for this account.', 'warning');
+  }
+
+  const editBtn = document.getElementById('editProfileBtn');
+  if (editBtn) {
+    editBtn.addEventListener('click', function () {
+      const firstInput = document.getElementById('profilePhone');
+      if (firstInput) firstInput.focus();
+    });
   }
 
   const saveBtn = document.getElementById('saveProfileBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', async function () {
+      if (!registration) {
+        showToast('No registration record to update.', 'warning');
+        return;
+      }
+
       try {
         showLoading(true);
+        const firstName = document.getElementById('profileFirstName').value.trim();
+        const lastName = document.getElementById('profileLastName').value.trim();
+        const phone = document.getElementById('profilePhone').value.trim();
+        const address = document.getElementById('profileAddress').value.trim();
+
         const { error } = await supabase
           .from('student_registrations')
           .update({
-            phone: document.getElementById('profilePhone').value,
-            address: document.getElementById('profileAddress').value,
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone,
+            address: address,
             updated_at: new Date().toISOString()
           })
           .eq('id', session.user.id);
 
         if (error) throw error;
+
+        const newName = [firstName, registration.middle_name, lastName].filter(Boolean).join(' ');
+        if (newName) {
+          const { error: userUpdateError } = await supabase
+            .from('users')
+            .update({ name: newName })
+            .eq('id', session.user.id);
+
+          if (userUpdateError) {
+            console.error('Error updating user name:', userUpdateError);
+          }
+          document.getElementById('profileName').textContent = newName;
+        }
+
+        registration.first_name = firstName;
+        registration.last_name = lastName;
+        registration.phone = phone;
+        registration.address = address;
+
         showToast('Profile updated successfully!', 'success');
       } catch (error) {
         console.error('Profile update error:', error);
@@ -95,6 +121,50 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   }
 });
+
+function populateProfile(userData, registration) {
+  const setText = function (id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+  const setValue = function (id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  };
+
+  const fullName = registration
+    ? [registration.first_name, registration.middle_name, registration.last_name].filter(Boolean).join(' ')
+    : (userData.name || userData.email || 'N/A');
+
+  setText('profileName', fullName || 'N/A');
+  setText('profileStudentNumber', (registration && registration.student_number) || userData.student_number || 'N/A');
+  setText('profileRole', userData.role || 'student');
+  setText('profileEmail', userData.email || 'N/A');
+
+  const avatar = document.getElementById('profileAvatar');
+  if (avatar) {
+    avatar.src = registration && registration.photo_url ? registration.photo_url : 'images/default-avatar.svg';
+  }
+
+  setValue('profileStudentNumberInput', (registration && registration.student_number) || userData.student_number || '');
+  setValue('profileEmailInput', (registration && registration.email) || userData.email || '');
+
+  if (registration) {
+    setValue('profileFirstName', registration.first_name || '');
+    setValue('profileLastName', registration.last_name || '');
+    setValue('profileBirthday', registration.birthday || '');
+    setValue('profileAge', registration.age || '');
+    setValue('profileGender', registration.gender || '');
+    setValue('profilePhone', registration.phone || '');
+    setValue('profileAddress', registration.address || '');
+    setValue('profileProvince', registration.province || '');
+    setValue('profileCity', registration.city || '');
+    setValue('profileBarangay', registration.barangay || '');
+    setValue('profileCourse', registration.course || '');
+    setValue('profileYearLevel', registration.year_level || '');
+    setValue('profileSection', registration.section || '');
+  }
+}
 
 function setupDarkMode() {
   const toggle = document.getElementById('darkModeToggle');

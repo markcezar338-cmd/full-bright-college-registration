@@ -107,10 +107,35 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     SELECT 1
     FROM public.users
     WHERE student_number = TRIM(p_student_number)
+  ) OR EXISTS (
+    SELECT 1
+    FROM public.student_registrations
+    WHERE student_number = TRIM(p_student_number)
   );
 $$;
 
 GRANT EXECUTE ON FUNCTION public.student_number_exists(TEXT) TO anon, authenticated;
+
+-- Admin-only deletion of an Auth user. The cascade foreign keys remove the
+-- matching public.users and public.student_registrations rows.
+CREATE OR REPLACE FUNCTION public.admin_delete_user(target_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Only admins can delete users.';
+  END IF;
+
+  IF target_id = auth.uid() THEN
+    RAISE EXCEPTION 'You cannot delete your own account.';
+  END IF;
+
+  DELETE FROM auth.users WHERE id = target_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_delete_user(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_delete_user(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.admin_delete_user(UUID) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
@@ -141,6 +166,24 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
 DROP TRIGGER IF EXISTS update_student_registrations_updated_at ON public.student_registrations;
 CREATE TRIGGER update_student_registrations_updated_at BEFORE UPDATE ON public.student_registrations
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Students may edit their own registration, but only staff may change status.
+CREATE OR REPLACE FUNCTION public.prevent_student_status_change()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL
+     AND NEW.status IS DISTINCT FROM OLD.status
+     AND NOT public.is_staff() THEN
+    RAISE EXCEPTION 'Students cannot change registration status.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS prevent_student_status_change ON public.student_registrations;
+CREATE TRIGGER prevent_student_status_change
+  BEFORE UPDATE ON public.student_registrations
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_student_status_change();
 DROP TRIGGER IF EXISTS update_settings_updated_at ON public.settings;
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

@@ -9,14 +9,17 @@ document.addEventListener('DOMContentLoaded', function () {
   const rememberMeCheckbox = document.getElementById('rememberMe');
   const userTypeSelect = document.getElementById('userType');
 
-  // Redirect if already logged in
-  supabase.auth.getSession().then(function ({ data: { session } }) {
-    if (session) {
-      getCurrentUserRole().then(function (role) {
-        if (role) redirectByRole(role);
-      });
-    }
-  });
+  // This script is intended for login.html only. Keeping the redirect inside
+  // this guard prevents public pages such as Home from redirecting a user away.
+  if (loginForm) {
+    supabase.auth.getSession().then(function ({ data: { session } }) {
+      if (session) {
+        getCurrentUserRole().then(function (role) {
+          if (role) redirectByRole(role);
+        });
+      }
+    });
+  }
 
   // Handle login form submission
   if (loginForm) {
@@ -44,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function () {
           .from('users')
           .select('role')
           .eq('id', result.user.id)
-          .single();
+          .maybeSingle();
 
         if (userError || !userData) {
           await supabase.auth.signOut();

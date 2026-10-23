@@ -25,7 +25,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     .from('student_registrations')
     .select('*')
     .eq('id', session.user.id)
-    .single();
+    .maybeSingle();
+
+  if (regError) {
+    console.error('Error loading registration:', regError);
+  }
 
   populateStudentDashboard(registration, session.user);
 
@@ -51,54 +55,88 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   }
 
-  setupDarkMode();
+  const slipNavLink = document.getElementById('slipNavLink');
+  if (slipNavLink) {
+    slipNavLink.addEventListener('click', function (e) {
+      e.preventDefault();
+      downloadRegistrationSlip(registration, session.user);
+    });
+  }
+
   setupMobileMenu();
 });
 
+function setElementText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setElementImage(id, src) {
+  const el = document.getElementById(id);
+  if (el) el.src = src;
+}
+
+function valueOrNA(value) {
+  return value === null || value === undefined || value === '' ? 'N/A' : value;
+}
+
 function populateStudentDashboard(data, user) {
-  const profilePic = document.getElementById('profilePic');
-  if (profilePic && data && data.photo_url) {
-    profilePic.src = data.photo_url;
-  } else if (profilePic) {
-    profilePic.src = 'images/default-avatar.png';
-  }
+  const photoUrl = data && data.photo_url ? data.photo_url : 'images/default-avatar.svg';
+  setElementImage('profilePic', photoUrl);
+  setElementImage('dashboardProfilePic', photoUrl);
 
-  const nameEl = document.getElementById('studentName');
-  if (nameEl && data) {
-    nameEl.textContent = data.first_name + ' ' + (data.middle_name ? data.middle_name + ' ' : '') + data.last_name;
-  }
+  const fullName = data
+    ? [data.first_name, data.middle_name, data.last_name].filter(Boolean).join(' ')
+    : (user && user.email ? user.email : 'Student');
 
-  const studentNumEl = document.getElementById('studentNumber');
-  if (studentNumEl && data) {
-    studentNumEl.textContent = data.student_number || 'N/A';
-  }
+  ['studentName', 'dashboardName', 'detailFullName'].forEach(function (id) {
+    setElementText(id, fullName);
+  });
+  setElementText('studentRole', 'Student');
 
-  const courseEl = document.getElementById('studentCourse');
-  if (courseEl && data) {
-    courseEl.textContent = data.course || 'N/A';
-  }
+  const email = data && data.email ? data.email : (user ? user.email : '');
+  const address = data
+    ? [data.address, data.barangay, data.city, data.province].filter(Boolean).join(', ')
+    : '';
 
-  const yearEl = document.getElementById('studentYear');
-  if (yearEl && data) {
-    yearEl.textContent = data.year_level || 'N/A';
-  }
+  const values = {
+    studentNumber: valueOrNA(data && data.student_number),
+    dashboardStudentNumber: valueOrNA(data && data.student_number),
+    detailStudentNumber: valueOrNA(data && data.student_number),
+    studentCourse: valueOrNA(data && data.course),
+    dashboardCourse: valueOrNA(data && data.course),
+    detailCourse: valueOrNA(data && data.course),
+    studentYear: valueOrNA(data && data.year_level),
+    dashboardYear: valueOrNA(data && data.year_level),
+    detailYearLevel: valueOrNA(data && data.year_level),
+    studentSection: valueOrNA(data && data.section),
+    dashboardSection: valueOrNA(data && data.section),
+    detailSection: valueOrNA(data && data.section),
+    studentEmail: valueOrNA(email),
+    detailEmail: valueOrNA(email),
+    detailBirthday: data ? formatDate(data.birthday) : 'N/A',
+    detailAge: valueOrNA(data && data.age),
+    detailGender: valueOrNA(data && data.gender),
+    detailPhone: valueOrNA(data && data.phone),
+    detailAddress: valueOrNA(address),
+    detailGuardian: valueOrNA(data && data.guardian_name),
+    detailGuardianContact: valueOrNA(data && data.guardian_contact)
+  };
 
-  const sectionEl = document.getElementById('studentSection');
-  if (sectionEl && data) {
-    sectionEl.textContent = data.section || 'N/A';
-  }
+  Object.keys(values).forEach(function (id) {
+    setElementText(id, values[id]);
+  });
 
-  const statusEl = document.getElementById('registrationStatus');
-  if (statusEl && data) {
-    const status = data.status || 'pending';
-    statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-    statusEl.className = 'badge badge-' + getStatusClass(status);
-  }
-
-  const emailEl = document.getElementById('studentEmail');
-  if (emailEl && user) {
-    emailEl.textContent = user.email || 'N/A';
-  }
+  const status = data && data.status ? data.status : 'pending';
+  const statusLabel = data
+    ? status.charAt(0).toUpperCase() + status.slice(1)
+    : 'No Registration';
+  ['dashboardStatus', 'registrationStatus'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = statusLabel;
+    el.className = 'badge badge-' + getStatusClass(status);
+  });
 }
 
 function getStatusClass(status) {
@@ -122,13 +160,17 @@ function downloadRegistrationSlip(data, user) {
   }
 
   const fullName = data.first_name + ' ' + (data.middle_name ? data.middle_name + ' ' : '') + data.last_name;
-  const status = (data.status || 'pending').toUpperCase();
+  const statusKey = ['pending', 'approved', 'rejected'].includes(data.status) ? data.status : 'pending';
+  const status = statusKey.toUpperCase();
+  const escapeValue = function (value) {
+    return value === null || value === undefined || value === '' ? 'N/A' : sanitizeInput(String(value));
+  };
 
   printWindow.document.write(`
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Registration Slip - ${fullName}</title>
+      <title>Registration Slip - ${sanitizeInput(fullName)}</title>
       <style>
         body { font-family: 'Poppins', sans-serif; padding: 2rem; max-width: 800px; margin: auto; }
         .header { text-align: center; border-bottom: 3px solid #1a3a6b; padding-bottom: 1rem; margin-bottom: 2rem; }
@@ -151,19 +193,19 @@ function downloadRegistrationSlip(data, user) {
         <p>Student Registration Slip</p>
         <p>Generated: ${new Date().toLocaleDateString()}</p>
       </div>
-      <div class="status ${data.status || 'pending'}">Status: ${status}</div>
+      <div class="status ${statusKey}">Status: ${status}</div>
       <table class="info-table">
-        <tr><td>Student Number</td><td>${data.student_number || 'N/A'}</td></tr>
-        <tr><td>Full Name</td><td>${fullName}</td></tr>
-        <tr><td>Birthday</td><td>${data.birthday || 'N/A'}</td></tr>
-        <tr><td>Age</td><td>${data.age || 'N/A'}</td></tr>
-        <tr><td>Gender</td><td>${data.gender || 'N/A'}</td></tr>
-        <tr><td>Email</td><td>${data.email || 'N/A'}</td></tr>
-        <tr><td>Phone</td><td>${data.phone || 'N/A'}</td></tr>
-        <tr><td>Course</td><td>${data.course || 'N/A'}</td></tr>
-        <tr><td>Year Level</td><td>${data.year_level || 'N/A'}</td></tr>
-        <tr><td>Section</td><td>${data.section || 'N/A'}</td></tr>
-        <tr><td>Address</td><td>${data.address || 'N/A'}, ${data.city || ''}, ${data.province || ''}</td></tr>
+        <tr><td>Student Number</td><td>${escapeValue(data.student_number)}</td></tr>
+        <tr><td>Full Name</td><td>${sanitizeInput(fullName)}</td></tr>
+        <tr><td>Birthday</td><td>${escapeValue(data.birthday)}</td></tr>
+        <tr><td>Age</td><td>${escapeValue(data.age)}</td></tr>
+        <tr><td>Gender</td><td>${escapeValue(data.gender)}</td></tr>
+        <tr><td>Email</td><td>${escapeValue(data.email)}</td></tr>
+        <tr><td>Phone</td><td>${escapeValue(data.phone)}</td></tr>
+        <tr><td>Course</td><td>${escapeValue(data.course)}</td></tr>
+        <tr><td>Year Level</td><td>${escapeValue(data.year_level)}</td></tr>
+        <tr><td>Section</td><td>${escapeValue(data.section)}</td></tr>
+        <tr><td>Address</td><td>${escapeValue([data.address, data.barangay, data.city, data.province].filter(Boolean).join(', '))}</td></tr>
       </table>
       <div class="footer">
         <p>Fullbright College - Student Registration System</p>
@@ -174,4 +216,24 @@ function downloadRegistrationSlip(data, user) {
     </html>
   `);
   printWindow.document.close();
+}
+
+function setupMobileMenu() {
+  const btn = document.getElementById('mobileMenuBtn');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+
+  if (btn && sidebar) {
+    btn.addEventListener('click', function () {
+      sidebar.classList.toggle('show');
+      if (overlay) overlay.classList.toggle('show');
+    });
+  }
+
+  if (overlay && sidebar) {
+    overlay.addEventListener('click', function () {
+      sidebar.classList.remove('show');
+      overlay.classList.remove('show');
+    });
+  }
 }

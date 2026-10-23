@@ -59,18 +59,19 @@ async function loadPendingRegistrations() {
 
     data.forEach(function (row) {
       const tr = document.createElement('tr');
+      const rowId = sanitizeInput(String(row.id));
       tr.innerHTML = `
-        <td>${row.student_number || 'N/A'}</td>
-        <td>${row.first_name || ''} ${row.middle_name ? row.middle_name + ' ' : ''} ${row.last_name || ''}</td>
-        <td>${row.course || 'N/A'}</td>
-        <td>${row.year_level || 'N/A'}</td>
+        <td>${sanitizeInput(row.student_number || 'N/A')}</td>
+        <td>${sanitizeInput(row.first_name || '')} ${row.middle_name ? sanitizeInput(row.middle_name) + ' ' : ''} ${sanitizeInput(row.last_name || '')}</td>
+        <td>${sanitizeInput(row.course || 'N/A')}</td>
+        <td>${sanitizeInput(row.year_level || 'N/A')}</td>
         <td><span class="badge badge-pending">Pending</span></td>
         <td>
           <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary btn-view" data-id="${row.id}"><i class="fas fa-eye"></i></button>
-            <button class="btn btn-success btn-approve" data-id="${row.id}"><i class="fas fa-check"></i></button>
-            <button class="btn btn-danger btn-reject" data-id="${row.id}"><i class="fas fa-times"></i></button>
-            <button class="btn btn-warning btn-return" data-id="${row.id}"><i class="fas fa-undo"></i></button>
+            <button class="btn btn-outline-primary btn-view" data-id="${rowId}"><i class="fas fa-eye"></i></button>
+            <button class="btn btn-success btn-approve" data-id="${rowId}"><i class="fas fa-check"></i></button>
+            <button class="btn btn-danger btn-reject" data-id="${rowId}"><i class="fas fa-times"></i></button>
+            <button class="btn btn-warning btn-return" data-id="${rowId}"><i class="fas fa-undo"></i></button>
           </div>
         </td>
       `;
@@ -128,10 +129,10 @@ async function loadApprovedStudents() {
     data.forEach(function (row) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${row.student_number || 'N/A'}</td>
-        <td>${row.first_name || ''} ${row.middle_name ? row.middle_name + ' ' : ''} ${row.last_name || ''}</td>
-        <td>${row.course || 'N/A'}</td>
-        <td>${row.year_level || 'N/A'}</td>
+        <td>${sanitizeInput(row.student_number || 'N/A')}</td>
+        <td>${sanitizeInput(row.first_name || '')} ${row.middle_name ? sanitizeInput(row.middle_name) + ' ' : ''} ${sanitizeInput(row.last_name || '')}</td>
+        <td>${sanitizeInput(row.course || 'N/A')}</td>
+        <td>${sanitizeInput(row.year_level || 'N/A')}</td>
         <td>${formatDate(row.updated_at)}</td>
       `;
       tbody.appendChild(tr);
@@ -212,13 +213,20 @@ function viewRegistration(docId) {
     .from('student_registrations')
     .select('*')
     .eq('id', docId)
-    .single()
-    .then(function ({ data }) {
+    .maybeSingle()
+    .then(function ({ data, error }) {
+      if (error) {
+        console.error('Error viewing registration:', error);
+        showToast('Failed to load registration details.', 'danger');
+        return;
+      }
+
       if (data) {
         const modal = new bootstrap.Modal(document.getElementById('viewRegistrationModal'));
 
         document.getElementById('viewRegStudentNumber').textContent = data.student_number || 'N/A';
-        document.getElementById('viewRegFullName').textContent = data.first_name + ' ' + (data.middle_name ? data.middle_name + ' ' : '') + data.last_name;
+        document.getElementById('viewRegFullName').textContent =
+          [data.first_name, data.middle_name, data.last_name].filter(Boolean).join(' ') || 'N/A';
         document.getElementById('viewRegEmail').textContent = data.email || 'N/A';
         document.getElementById('viewRegPhone').textContent = data.phone || 'N/A';
         document.getElementById('viewRegCourse').textContent = data.course || 'N/A';
@@ -230,16 +238,12 @@ function viewRegistration(docId) {
         document.getElementById('viewRegStatus').textContent = (data.status || 'pending').charAt(0).toUpperCase() + (data.status || 'pending').slice(1);
         document.getElementById('viewRegStatus').className = 'badge badge-' + getStatusClass(data.status);
 
-        if (data.photo_url) {
-          document.getElementById('viewRegPhoto').src = data.photo_url;
-          document.getElementById('viewRegPhoto').style.display = 'block';
-        }
+        const photo = document.getElementById('viewRegPhoto');
+        photo.src = data.photo_url || 'images/default-avatar.svg';
+        photo.style.display = 'block';
 
         modal.show();
       }
-    })
-    .catch(function (error) {
-      console.error('Error viewing registration:', error);
     });
 }
 
@@ -287,7 +291,7 @@ function setupEventListeners() {
     });
   }
 
-  const tabLinks = document.querySelectorAll('.registrar-tab');
+  const tabLinks = document.querySelectorAll('a.registrar-tab[data-tab]');
   tabLinks.forEach(function (tab) {
     tab.addEventListener('click', function (e) {
       e.preventDefault();
@@ -295,7 +299,7 @@ function setupEventListeners() {
       this.classList.add('active');
       const target = this.getAttribute('data-tab');
       document.querySelectorAll('.registrar-tab-content').forEach(function (content) {
-        content.style.display = content.id === target ? 'block' : 'none';
+        content.classList.toggle('d-none', content.id !== target);
       });
     });
   });

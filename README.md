@@ -8,6 +8,7 @@ A professional, responsive Student Registration System built with HTML5, CSS3, V
 Student-Registration-System/
 ├── index.html                  # Home page
 ├── login.html                  # Login page
+├── reset-password.html         # Set a new password from a reset email
 ├── register.html               # Student registration form
 ├── student-dashboard.html      # Student dashboard
 ├── registrar-dashboard.html    # Registrar dashboard
@@ -25,13 +26,14 @@ Student-Registration-System/
 │   ├── supabase-config.js      # Supabase client configuration
 │   ├── auth.js                   # Authentication logic (Supabase)
 │   ├── login.js                  # Login page logic
+│   ├── reset-password.js         # Password reset completion logic
 │   ├── register.js               # Registration page logic
 │   ├── dashboard.js              # Student dashboard logic
 │   ├── admin.js                  # Admin dashboard logic
 │   ├── registrar.js              # Registrar dashboard logic
 │   └── validation.js             # Form validation
 ├── images/
-│   └── logo.png                # School logo (add your own)
+│   └── logo.svg                # School logo (replace with your own if desired)
 ├── sql/
 │   └── schema.sql              # Supabase database schema
 └── README.md
@@ -80,11 +82,32 @@ This will create all the necessary tables:
 - `settings` — website settings
 - `logs` — activity logs
 
+### Step 4b: Apply the incremental database fixes
+If the database was created before the duplicate-check, admin-delete, and
+status-protection fixes, open a new SQL Editor query, paste `sql/admin-fixes.sql`,
+and click **Run**. It is safe to run again and does not modify student records.
+
 ### Step 5: Configure Authentication
 1. In Supabase Dashboard, go to **Authentication** > **Providers**
 2. Enable **Email** provider
 3. For first-time testing, disable **Confirm email** so a new account can immediately create its registration record.
-4. For production, enable email confirmation and have users verify their email before completing registration.
+4. Keep **Confirm email** disabled for this static site. The registration page must create the `public.users` and `student_registrations` rows immediately after signup; enabling confirmation requires a backend job before that can happen.
+
+### Step 5b: Configure Password Reset URLs
+Forgot Password sends the user to `reset-password.html`. Supabase must allow that address.
+
+1. In Supabase Dashboard, go to **Authentication** > **URL Configuration**.
+2. Set **Site URL** to the address where the site is running.
+   - For local testing: `http://localhost:5500` (use your actual local server port if it is different).
+   - For production: your deployed address, such as `https://your-site.netlify.app`.
+3. Under **Redirect URLs**, add:
+   - `http://localhost:5500/reset-password.html`
+   - `https://your-site.netlify.app/reset-password.html` after deployment
+4. Click **Save**.
+
+If a requested redirect is not in the allow list, Supabase falls back to the Site URL. That is why a reset link can point to `localhost:3000` or only work on the computer running the local server. Always request a new reset email after changing these settings because older emails still contain the old address.
+
+Open the project through a local web server (for example, VS Code Live Server on port 5500), not by double-clicking the HTML file. A `localhost` reset link can only open on the computer that is running that local server; deploy the site before testing the email link on a phone or another computer.
 
 ### Step 6: Set Up Storage
 1. In Supabase Dashboard, go to **Storage**
@@ -123,7 +146,7 @@ After running the SQL schema, RLS policies are already set up. The key policies 
 1. In Supabase Dashboard, go to **Authentication** > **Users**
 2. Click **Add user**
 3. Email: `admin@fullbright.edu`
-4. Password: `Admin123456`
+4. Password: choose a strong, unique password and store it in a password manager. Never commit it to this repository.
 5. Click **Add user**
 6. Go to **Table Editor** > `users`
 7. Find the admin user and update the row:
@@ -134,7 +157,7 @@ After running the SQL schema, RLS policies are already set up. The key policies 
 #### Create Registrar Account
 1. Add another user:
    - Email: `registrar@fullbright.edu`
-   - Password: `Registrar1234`
+   - Password: choose a strong, unique password and keep it private.
 2. Update the row in `users` table:
    - `role`: `registrar`
    - `name`: `Registrar Office`
@@ -144,13 +167,15 @@ After running the SQL schema, RLS policies are already set up. The key policies 
 1. Register a new student through the website (register.html)
 2. Or manually add a user in the `users` table and then create a registration in `student_registrations`
 
-## Default Login Credentials (After Setup)
+## Staff Login Accounts
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@fullbright.edu | Admin123456 |
-| Registrar | registrar@fullbright.edu | Registrar1234 |
-| Student | Any registered student email | Their password |
+| Admin | admin@fullbright.edu | Set during setup; keep private |
+| Registrar | registrar@fullbright.edu | Set during setup; keep private |
+| Student | Any registered student email | Their own password |
+
+Never store working passwords in a public repository, README, or screenshot.
 
 ## Deploying to GitHub + Supabase
 
@@ -221,7 +246,7 @@ git push -u origin main
 
 1. **Replace `YOUR_SUPABASE_URL_HERE`** in `js/supabase-config.js` with your actual Supabase URL.
 2. **Replace `YOUR_SUPABASE_ANON_KEY_HERE`** with your actual anon key.
-3. **Add your school logo** to the `images/` folder as `logo.png`.
+3. **Replace the supplied school logo** in the `images/` folder if desired.
 4. **Run the SQL schema** in Supabase's SQL Editor to create all tables.
 5. **Test locally** by opening `index.html` in a browser, or use a local server like Live Server in VS Code.
 6. **Never commit your anon key to a public repository** in production. Use environment variables instead.

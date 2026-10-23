@@ -3,12 +3,16 @@
    Admin Dashboard Logic (Supabase)
    ============================================================ */
 
+let currentUserId = null;
+
 document.addEventListener('DOMContentLoaded', async function () {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     window.location.href = 'login.html';
     return;
   }
+
+  currentUserId = session.user.id;
 
   const { data: userData, error: userError } = await supabase
     .from('users')
@@ -91,18 +95,20 @@ async function loadStudentsTable() {
 
     data.forEach(function (row) {
       const tr = document.createElement('tr');
+      const rowId = sanitizeInput(String(row.id));
+      const status = row.status || 'pending';
       tr.innerHTML = `
-        <td>${row.student_number || 'N/A'}</td>
-        <td>${row.first_name || ''} ${row.middle_name ? row.middle_name + ' ' : ''} ${row.last_name || ''}</td>
-        <td>${row.course || 'N/A'}</td>
-        <td>${row.year_level || 'N/A'}</td>
-        <td><span class="badge badge-${getStatusClass(row.status)}">${(row.status || 'pending').charAt(0).toUpperCase() + (row.status || 'pending').slice(1)}</span></td>
+        <td>${sanitizeInput(row.student_number || 'N/A')}</td>
+        <td>${sanitizeInput(row.first_name || '')} ${row.middle_name ? sanitizeInput(row.middle_name) + ' ' : ''} ${sanitizeInput(row.last_name || '')}</td>
+        <td>${sanitizeInput(row.course || 'N/A')}</td>
+        <td>${sanitizeInput(row.year_level || 'N/A')}</td>
+        <td><span class="badge badge-${getStatusClass(status)}">${sanitizeInput(status.charAt(0).toUpperCase() + status.slice(1))}</span></td>
         <td>${formatDate(row.created_at)}</td>
         <td>
           <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary btn-view" data-id="${row.id}"><i class="fas fa-eye"></i></button>
-            <button class="btn btn-outline-success btn-approve" data-id="${row.id}"><i class="fas fa-check"></i></button>
-            <button class="btn btn-outline-danger btn-reject" data-id="${row.id}"><i class="fas fa-times"></i></button>
+            <button class="btn btn-outline-primary btn-view" data-id="${rowId}"><i class="fas fa-eye"></i></button>
+            <button class="btn btn-outline-success btn-approve" data-id="${rowId}"><i class="fas fa-check"></i></button>
+            <button class="btn btn-outline-danger btn-reject" data-id="${rowId}"><i class="fas fa-times"></i></button>
           </div>
         </td>
       `;
@@ -152,29 +158,52 @@ async function loadUsersTable() {
 
     data.forEach(function (row) {
       const tr = document.createElement('tr');
+      const rowId = sanitizeInput(String(row.id));
       tr.innerHTML = `
-        <td>${row.email || 'N/A'}</td>
-        <td><span class="badge bg-primary">${row.role || 'user'}</span></td>
-        <td>${row.student_number || 'N/A'}</td>
+        <td>${sanitizeInput(row.email || 'N/A')}</td>
+        <td><span class="badge bg-primary">${sanitizeInput(row.role || 'user')}</span></td>
+        <td>${sanitizeInput(row.student_number || 'N/A')}</td>
         <td>${formatDate(row.created_at)}</td>
         <td>
-          <button class="btn btn-sm btn-outline-danger btn-delete-user" data-id="${row.id}"><i class="fas fa-trash"></i></button>
+          <button class="btn btn-sm btn-outline-danger btn-delete-user" data-id="${rowId}"><i class="fas fa-trash"></i></button>
         </td>
       `;
       tbody.appendChild(tr);
     });
 
     tbody.querySelectorAll('.btn-delete-user').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        if (confirm('Are you sure you want to delete this user?')) {
-          supabase.from('users').delete().eq('id', this.getAttribute('data-id'))
-            .then(function () {
-              showToast('User deleted successfully.', 'success');
-              loadUsersTable();
-            })
-            .catch(function (error) {
-              showToast('Failed to delete user.', 'danger');
-            });
+      btn.addEventListener('click', async function () {
+        const userId = this.getAttribute('data-id');
+
+        if (userId === currentUserId) {
+          showToast('You cannot delete your own account.', 'warning');
+          return;
+        }
+
+        if (!confirm('Are you sure you want to delete this user? Their registration record will also be deleted.')) {
+          return;
+        }
+
+        try {
+          showLoading(true);
+          const { error } = await supabase.rpc('admin_delete_user', { target_id: userId });
+
+          if (error) throw error;
+
+          showToast('User deleted successfully.', 'success');
+          loadUsersTable();
+          loadStudentsTable();
+          loadDashboardStats();
+        } catch (error) {
+          console.error('Error deleting user:', error);
+          const message = error && error.message ? error.message : '';
+          if (message.includes('Could not find the function') || message.includes('schema cache')) {
+            showToast('User deletion is not set up yet. Run sql/admin-fixes.sql in Supabase first.', 'danger');
+          } else {
+            showToast('Failed to delete user: ' + (message || 'Unknown error'), 'danger');
+          }
+        } finally {
+          showLoading(false);
         }
       });
     });
@@ -262,11 +291,18 @@ function viewStudentDetails(docId) {
     .from('student_registrations')
     .select('*')
     .eq('id', docId)
-    .single()
-    .then(function ({ data }) {
+    .maybeSingle()
+    .then(function ({ data, error }) {
+      if (error) {
+        console.error('Error viewing student:', error);
+        showToast('Failed to load student details.', 'danger');
+        return;
+      }
+
       if (data) {
         const modal = new bootstrap.Modal(document.getElementById('viewStudentModal'));
-        document.getElementById('viewStudentName').textContent = data.first_name + ' ' + (data.middle_name ? data.middle_name + ' ' : '') + data.last_name;
+        document.getElementById('viewStudentName').textContent =
+          [data.first_name, data.middle_name, data.last_name].filter(Boolean).join(' ') || 'N/A';
         document.getElementById('viewStudentNumber').textContent = data.student_number || 'N/A';
         document.getElementById('viewStudentEmail').textContent = data.email || 'N/A';
         document.getElementById('viewStudentPhone').textContent = data.phone || 'N/A';
@@ -275,11 +311,13 @@ function viewStudentDetails(docId) {
         document.getElementById('viewStudentSection').textContent = data.section || 'N/A';
         document.getElementById('viewStudentStatus').textContent = (data.status || 'pending').charAt(0).toUpperCase() + (data.status || 'pending').slice(1);
         document.getElementById('viewStudentStatus').className = 'badge badge-' + getStatusClass(data.status);
+
+        const photo = document.getElementById('viewStudentPhoto');
+        photo.src = data.photo_url || 'images/default-avatar.svg';
+        photo.style.display = 'block';
+
         modal.show();
       }
-    })
-    .catch(function (error) {
-      console.error('Error viewing student:', error);
     });
 }
 
@@ -326,7 +364,7 @@ function setupEventListeners() {
     });
   }
 
-  const tabLinks = document.querySelectorAll('.admin-tab');
+  const tabLinks = document.querySelectorAll('a.admin-tab[data-tab]');
   tabLinks.forEach(function (tab) {
     tab.addEventListener('click', function (e) {
       e.preventDefault();
@@ -334,7 +372,7 @@ function setupEventListeners() {
       this.classList.add('active');
       const target = this.getAttribute('data-tab');
       document.querySelectorAll('.admin-tab-content').forEach(function (content) {
-        content.style.display = content.id === target ? 'block' : 'none';
+        content.classList.toggle('d-none', content.id !== target);
       });
     });
   });

@@ -188,6 +188,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         showToast('Registration submitted successfully! Please wait for approval.', 'success');
         registerForm.reset();
+        clearFieldErrors();
+        if (passwordStrength) {
+          passwordStrength.className = 'password-strength';
+        }
         if (profilePreview) {
           profilePreview.src = '';
           profilePreview.style.display = 'none';

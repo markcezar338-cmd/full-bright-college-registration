@@ -25,7 +25,7 @@ async function getCurrentUserRole() {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (error || !data) return null;
     return data.role;
@@ -67,66 +67,49 @@ async function requireRole(requiredRole) {
 }
 
 async function signIn(email, password) {
-  try {
-    showLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email,
+    password: password
+  });
 
-    if (error) throw error;
+  if (error) throw error;
 
-    await saveLoginLog(data.user.id, 'login');
-    return data;
-  } catch (error) {
-    throw error;
-  } finally {
-    showLoading(false);
-  }
+  await saveLoginLog(data.user.id, 'login');
+  return data;
 }
 
 async function signUp(email, password, role, userData) {
-  try {
-    showLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: {
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          role: role,
-          student_number: userData.studentNumber || ''
-        }
+  const { data, error } = await supabase.auth.signUp({
+    email: email,
+    password: password,
+    options: {
+      data: {
+        first_name: userData.firstName,
+        last_name: userData.lastName,
+        role: role,
+        student_number: userData.studentNumber || ''
       }
-    });
-
-    if (error) throw error;
-
-    // The registration row is protected by RLS, so this page needs the
-    // session returned immediately after signup. Enable it by turning off
-    // Confirm email while testing in Authentication > Providers > Email.
-    if (!data.session) {
-      throw new Error('Email confirmation is enabled. Disable Confirm email in Supabase, then use a new email address to register.');
     }
+  });
 
-    // The database trigger creates this profile during signup. Upsert adds the
-    // registration-specific fields without failing on that existing row.
-    const { error: profileError } = await supabase.from('users').upsert({
-      id: data.user.id,
-      email: email,
-      role: role,
-      name: userData.firstName + ' ' + (userData.middleName ? userData.middleName + ' ' : '') + userData.lastName,
-      student_number: userData.studentNumber || null
-    });
-    if (profileError) throw profileError;
+  if (error) throw error;
 
-    return data;
-  } catch (error) {
-    throw error;
-  } finally {
-    showLoading(false);
+  // RLS only lets the newly signed-in user create their profile row, so the
+  // registration page needs a session immediately after signup.
+  if (!data.session) {
+    throw new Error('Email confirmation is enabled. Disable Confirm email in Supabase, then use a new email address to register.');
   }
+
+  const { error: profileError } = await supabase.from('users').upsert({
+    id: data.user.id,
+    email: email,
+    role: role,
+    name: userData.firstName + ' ' + (userData.middleName ? userData.middleName + ' ' : '') + userData.lastName,
+    student_number: userData.studentNumber || null
+  });
+  if (profileError) throw profileError;
+
+  return data;
 }
 
 async function signOut() {
@@ -142,7 +125,7 @@ async function resetPassword(email) {
   try {
     showLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + window.location.pathname.replace(/[^/]*$/, 'login.html')
+      redirectTo: window.location.origin + window.location.pathname.replace(/[^/]*$/, 'reset-password.html')
     });
     if (error) throw error;
     showToast('Password reset email sent. Check your inbox.', 'success');
@@ -170,7 +153,7 @@ async function saveLoginLog(userId, action) {
     await supabase.from('logs').insert({
       user_id: userId,
       action: action,
-      timestamp: new Date().toISOString()
+      details: { occurred_at: new Date().toISOString() }
     });
   } catch (error) {
     console.error('Error saving log:', error);

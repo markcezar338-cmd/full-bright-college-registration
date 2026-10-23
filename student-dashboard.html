@@ -11,7 +11,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/responsive.css">
-  <link rel="icon" type="image/png" href="images/logo.png">
+  <link rel="icon" type="image/svg+xml" href="images/logo.svg">
 </head>
 <body>
   <!-- Mobile Menu Button -->
@@ -25,7 +25,7 @@
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <img src="images/logo.png" alt="Logo" onerror="this.style.display='none'">
+      <img src="images/logo.svg" alt="Logo">
       <div>
         <h5>Fullbright College</h5>
         <small>Student Portal</small>
@@ -33,8 +33,8 @@
     </div>
     <nav class="sidebar-nav">
       <a href="#" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-      <a href="#" class="nav-link"><i class="fas fa-user"></i> Profile</a>
-      <a href="#" class="nav-link"><i class="fas fa-file-alt"></i> Registration Slip</a>
+      <a href="profile.html" class="nav-link"><i class="fas fa-user"></i> Profile</a>
+      <a href="#" class="nav-link" id="slipNavLink"><i class="fas fa-file-alt"></i> Registration Slip</a>
       <a href="#" class="nav-link"><i class="fas fa-history"></i> Registration History</a>
     </nav>
     <div class="sidebar-footer">
@@ -56,7 +56,7 @@
         </nav>
       </div>
       <div class="user-info">
-        <img id="profilePic" src="images/default-avatar.png" alt="Profile" class="user-avatar" onerror="this.src='images/default-avatar.png'">
+        <img id="profilePic" src="images/default-avatar.svg" alt="Profile" class="user-avatar">
         <div>
           <div class="user-name" id="studentName">Loading...</div>
           <div class="user-role" id="studentRole">Student</div>
@@ -71,7 +71,7 @@
           <div class="card-body">
             <div class="row align-items-center">
               <div class="col-md-4 text-center mb-3 mb-md-0">
-                <img id="dashboardProfilePic" src="images/default-avatar.png" alt="Profile" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:4px solid var(--primary);" onerror="this.src='images/default-avatar.png'">
+                <img id="dashboardProfilePic" src="images/default-avatar.svg" alt="Profile" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:4px solid var(--primary);">
                 <h5 class="mt-2 mb-0" id="dashboardName">Loading...</h5>
                 <p class="text-muted mb-0" style="font-size:0.8rem;" id="dashboardStudentNumber">N/A</p>
               </div>
