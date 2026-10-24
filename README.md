@@ -177,6 +177,14 @@ After running the SQL schema, RLS policies are already set up. The key policies 
 
 Never store working passwords in a public repository, README, or screenshot.
 
+## Security Notes
+
+- Staff passwords are managed in Supabase Authentication and are never stored in this repository.
+- Staff passwords were rotated and all existing staff sessions were revoked on 2026-10-24. Retired passwords that may appear in older commits are no longer valid.
+- Never place the `service_role`/secret key, database password, or `.env` contents in frontend code or Git.
+- If a credential is exposed, rotate it immediately and revoke the affected user's sessions in Supabase.
+- Do not share the local backup folders; they may contain old credentials.
+
 ## Deploying to GitHub + Supabase
 
 ### Step 1: Initialize Git
